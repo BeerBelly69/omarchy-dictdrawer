@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from datetime import datetime
 import unittest
 from unittest.mock import patch
 
@@ -66,7 +67,7 @@ class HistoryTests(unittest.TestCase):
         row = self.row(text="第一行\n\nSecond line\n")
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             list(executor.map(lambda _: history.save_row(self.directory, row), range(12)))
-        files = list(self.directory.iterdir())
+        files = list(self.directory.rglob("*.txt"))
         self.assertEqual(len(files), 1)
         self.assertEqual(files[0].stat().st_mode & 0o777, 0o600)
         self.assertEqual(history.read_archive(self.directory)[0][0]["text"], row["text"])
@@ -74,7 +75,7 @@ class HistoryTests(unittest.TestCase):
     def test_user_edited_archive_is_not_overwritten(self):
         row = self.row()
         history.save_row(self.directory, row)
-        path = self.directory / (row["id"] + ".txt")
+        path = history.day_directory(self.directory, row["ts"]) / (row["id"] + ".txt")
         path.write_text("An edited excerpt\n")
         history.save_row(self.directory, row)
         saved, _, _ = history.read_archive(self.directory)
@@ -186,6 +187,116 @@ class HistoryTests(unittest.TestCase):
     def test_xdg_data_home(self):
         with patch.dict(os.environ, {"XDG_DATA_HOME": self.temp.name}):
             self.assertEqual(history.archive_dir(), Path(self.temp.name) / "voxtype/history")
+
+    def test_new_files_use_private_local_date_folders(self):
+        stamp = datetime(2026, 9, 8, 23, 59, 59).timestamp()
+        row = self.row(round(stamp * 1000000))
+        history.save_row(self.directory, row)
+        target = self.directory / "2026-09-08" / (row["id"] + ".txt")
+        self.assertEqual(target.read_text(), row["text"] + "\n")
+        self.assertEqual(target.parent.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+
+    def test_date_folder_search_covers_every_day_beyond_display_limit(self):
+        for day in range(1, 26):
+            stamp = datetime(2026, 8, day, 12).timestamp()
+            history.save_row(self.directory, self.row(round(stamp * 1000000), f"Day {day} unique{day:02}"))
+        recent = history.load_history(self.directory, sync=False)
+        self.assertEqual(len(recent["rows"]), 20)
+        self.assertEqual(recent["total"], 25)
+        self.assertEqual(recent["rows"][0]["text"], "Day 25 unique25")
+        self.assertEqual(history.load_history(self.directory, "unique01", sync=False)["matched"], 1)
+        self.assertEqual(len(history.load_history(self.directory, limit=5, sync=False)["rows"]), 5)
+
+    def test_flat_migration_preserves_bytes_identity_edits_and_permissions(self):
+        self.directory.mkdir()
+        row = self.row()
+        source = self.directory / (row["id"] + ".txt")
+        original = b"An edited excerpt\r\nwith exact bytes\n\n"
+        source.write_bytes(original)
+        source.chmod(0o600)
+        legacy = self.directory / "2026-09-07_123456.txt"
+        legacy.write_text("An older dictation\n")
+        with patch.object(history, "read_journal", return_value=([row], "")):
+            result = history.load_history(self.directory)
+        target = history.day_directory(self.directory, row["ts"]) / source.name
+        self.assertFalse(source.exists())
+        self.assertEqual(target.read_bytes(), original)
+        self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+        self.assertTrue((self.directory / "2026-09-07" / legacy.name).exists())
+        self.assertEqual(len(result["rows"]), 2)
+        self.assertEqual(next(r for r in result["rows"] if r["id"] == row["id"])["text"], "An edited excerpt\nwith exact bytes\n")
+        self.assertEqual(history.archive_snapshot(self.directory, True)[2], "")
+
+    def test_migration_conflict_keeps_both_files_and_warns(self):
+        row = self.row()
+        history.save_row(self.directory, row)
+        source = self.directory / (row["id"] + ".txt")
+        source.write_text("A distinct edited flat copy\n")
+        saved, _, warning = history.archive_snapshot(self.directory, True)
+        self.assertIn("originals were kept", warning)
+        self.assertTrue(source.exists())
+        target = history.day_directory(self.directory, row["ts"]) / source.name
+        self.assertEqual(target.read_text(), row["text"] + "\n")
+        self.assertEqual(history.merge_rows(saved, [], [])[0]["text"], "A distinct edited flat copy")
+
+    def test_interrupted_migration_recovers_idempotently(self):
+        self.directory.mkdir()
+        row = self.row()
+        source = self.directory / (row["id"] + ".txt")
+        source.write_text(row["text"] + "\n")
+        original_unlink = Path.unlink
+        def fail_source(path, *args, **kwargs):
+            if path == source:
+                raise OSError("interrupted before unlink")
+            return original_unlink(path, *args, **kwargs)
+        with patch.object(Path, "unlink", fail_source):
+            self.assertIn("originals were kept", history.archive_snapshot(self.directory, True)[2])
+        self.assertTrue(source.exists())
+        self.assertEqual(history.archive_snapshot(self.directory, True)[2], "")
+        self.assertFalse(source.exists())
+        self.assertEqual(len(history.read_archive(self.directory)[0]), 1)
+
+    def test_concurrent_migration_and_search_keep_complete_history(self):
+        self.directory.mkdir()
+        for i in range(40):
+            row = self.row(1700000000000000 + i, f"entry {i}")
+            (self.directory / (row["id"] + ".txt")).write_text(row["text"] + "\n")
+        def snapshot(i):
+            return history.archive_snapshot(self.directory, organize=i % 2 == 0)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            snapshots = list(executor.map(snapshot, range(20)))
+        for saved, legacy, warning in snapshots:
+            self.assertEqual(len(saved), 40)
+            self.assertEqual(legacy, [])
+            self.assertEqual(warning, "")
+
+    def test_symlinked_date_folder_is_neither_read_nor_written(self):
+        self.directory.mkdir()
+        outside = Path(self.temp.name) / "outside"
+        outside.mkdir()
+        row = self.row(round(datetime(2026, 9, 8, 12).timestamp() * 1000000))
+        (self.directory / "2026-09-08").symlink_to(outside, target_is_directory=True)
+        (outside / (row["id"] + ".txt")).write_text("Private unrelated data")
+        self.assertEqual(history.read_archive(self.directory)[0], [])
+        with self.assertRaises(OSError):
+            history.save_row(self.directory, row)
+        flat = self.directory / (row["id"] + ".txt")
+        flat.write_text(row["text"] + "\n")
+        self.assertIn("originals were kept", history.archive_snapshot(self.directory, True)[2])
+        self.assertTrue(flat.exists())
+
+    def test_search_does_not_migrate_or_touch_unrelated_files(self):
+        self.directory.mkdir()
+        row = self.row()
+        flat = self.directory / (row["id"] + ".txt")
+        flat.write_text(row["text"] + "\n")
+        unrelated = self.directory / "notes.txt"
+        unrelated.write_text("Keep me here")
+        history.load_history(self.directory, sync=False)
+        self.assertTrue(flat.exists())
+        history.archive_snapshot(self.directory, True)
+        self.assertEqual(unrelated.read_text(), "Keep me here")
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ Your dictations, a keystroke away.
 
 A searchable Voxtype history drawer for Omarchy. Recover an excerpt, find the words you need, and copy them back into your work.
 
-> Private review build — not publicly released or listed in the marketplace. See the [release checklist](RELEASE_CHECKLIST.md) for remaining work.
+> Private release candidate — not publicly released or listed in the marketplace. See the [release checklist](RELEASE_CHECKLIST.md) before publishing.
 
 ![The dictation drawer, showing sample transcripts](preview.png)
 
@@ -13,9 +13,9 @@ Click the history icon to retrieve words that landed in the wrong window or reus
 ## Features
 
 - Recovers existing Voxtype transcripts from the user journal.
-- Saves plain-text excerpts locally and reads them back after journal rotation.
+- Saves plain-text excerpts in per-day folders and reads them back after journal rotation.
 - Searches all saved transcripts, with case-insensitive, multiword matching, highlighted words, and context previews.
-- Keyboard navigation, expandable excerpts, and clipboard copy with success/failure feedback.
+- Just start typing to search; arrow-key navigation, expandable excerpts, and clipboard copy with success/failure feedback.
 - Top, bottom, left, and right bar layouts, with rounded corners and a subtle shadow.
 - No Voxtype configuration changes, additional recording process, model downloads, or network requests.
 
@@ -61,15 +61,15 @@ On a Mac keyboard, Super is the Command key. This shortcut is Cmd+Alt+the apostr
 | Action | Control |
 | --- | --- |
 | Open or close | History icon, or your optional shortcut |
-| Select an excerpt | Up/Down or j/k |
-| Expand / collapse | Right/Left or l/h; click the excerpt |
-| Copy selection | Enter or Space; copy button on each row |
-| Search | Magnifier, Ctrl+F, `/`, f, or Tab |
+| Select an excerpt | Up/Down |
+| Expand / collapse | Right/Left outside the search field; click the excerpt |
+| Copy selection | Enter; copy button on each row |
+| Search | Start typing; magnifier, Ctrl+F, or Tab to focus/select the query |
 | Refresh from journal | Circular-arrow button |
 | Open saved text files | Folder button |
-| Close | Escape outside the search field, or click outside |
+| Close | Escape clears a query first; press again to close, or click outside |
 
-In the search field, arrows select results and Enter copies; ordinary letters remain editable. Escape first clears the query, then leaves search. A further Escape closes the drawer. Tab returns to list navigation. After copying, paste normally in your destination app.
+Typing from the excerpt list starts a new search immediately, including letters that used to navigate (j/k/h/l) and punctuation such as `/`. In the search field, Up/Down select results and Enter copies; Left/Right move the caret, and spaces, Backspace, selection, and other normal text editing remain available. Ctrl+F selects the current query. Escape clears the query and returns to the excerpt list; another Escape closes the drawer. Tab returns to list navigation. After copying, paste normally in your destination app.
 
 Search matches every word you enter, regardless of order or case. It searches the full saved archive; the newest matching excerpts are displayed up to the widget's **Dictations shown** limit (5–100, default 20). Narrow the query to reach older matches. The result count shows the total number of matches, including any beyond the display limit.
 
@@ -83,9 +83,11 @@ The drawer stays full-sized while searching, including when there are no matches
 
 The plugin reads only the `voxtype.service` user journal and its transcript directory. It never records audio or uploads transcripts. Enabling the widget enables local archival; there is no separate capture hook or config rewrite.
 
-History lives in `$XDG_DATA_HOME/voxtype/history`, or `~/.local/share/voxtype/history` when XDG_DATA_HOME is unset. New transcripts are private (`0600`) text files with microsecond timestamps and content hashes in their names. New archive directories are created with mode `0700`. Existing directories and legacy files retain their permissions.
+History lives in `$XDG_DATA_HOME/voxtype/history`, or `~/.local/share/voxtype/history` when XDG_DATA_HOME is unset. Each transcript is saved under its recording's local date, for example `history/2026-09-08/1788877800000000-<hash>.txt`. New transcripts are private (`0600`) text files with microsecond timestamps and content hashes in their names. New archive and date directories are created with mode `0700`. Existing directories and legacy files retain their permissions.
 
-Older `YYYY-MM-DD_HHMMSS.txt` archives are read without rewriting them. Duplicate legacy copies are suppressed in the panel. New writes are atomic and do not overwrite existing files; manually edited archive text is preserved.
+On opening or refreshing, existing flat transcript files—including older `YYYY-MM-DD_HHMMSS.txt` files—are reorganized into date folders without changing their filenames, bytes, or permissions. Both layouts remain readable. Interrupted moves can resume safely; conflicting copies are kept with a warning, never overwritten. Unrelated files and symlinks are left alone. A private `.dictdrawer.lock` coordinates reorganization and reads between monitor instances. New transcript writes are atomic, and manually edited archive text is preserved.
+
+Dates use the system's local timezone when a file is first saved or organized. Changing timezone does not relocate already-organized files. The rolling 20 (or your chosen display limit) never deletes older transcripts; search covers all date folders.
 
 On first use, at most the newest **50,000 journal records** are imported. Subsequent imports resume from the newest saved timestamp with a one-second overlap. A warning appears if the import cap is reached or history is unavailable. Journal entries already removed by rotation cannot be recovered unless a saved transcript exists. The archive has no automatic retention limit in this release.
 
@@ -116,12 +118,13 @@ Remove the optional binding you added to `bindings.lua` and reload Hyprland. Sav
 
 ```sh
 python3 -m unittest discover -s tests -v
+QT_QPA_PLATFORM=offscreen /usr/lib/qt6/bin/qmltestrunner -input tests/qml -o -,txt
 omarchy plugin validate .
 ```
 
-The automated tests use temporary files and mocked journals. They cover recovery after rotation, concurrent saves, timestamp collisions, legacy archives, literal Unicode search, edited files, unreadable files, and missing/failed journal commands. They do not require private transcripts or a running desktop.
+The automated tests use temporary files and mocked journals. They cover recovery after rotation, concurrent saves and migration, date folders, interrupted/conflicting moves, timestamp collisions, legacy archives, literal Unicode search, edited files, unreadable files, missing/failed journal commands, package identity, and type-to-search keyboard behavior. They do not require private transcripts or a running desktop. The keyboard tests require Qt Quick Test (`qmltestrunner`); these development tools are not needed to run DictDrawer.
 
-Manual checks on Omarchy 4.0.2 covered top/bottom/left/right bar layouts, 1× and 1.5× monitors, search and no-match states, exact clipboard content, Escape dismissal, and rapid close/reopen. Screenshots use only authored sample text on a temporary preview background. These early preview captures predate highlighted search and the fixed-height results area; updated captures are on the release checklist.
+Manual checks on Omarchy 4.0.2 covered top/bottom/left/right bar layouts, 1× and 1.5× physical monitors, search and no-match states, exact clipboard content, Escape dismissal, and rapid close/reopen. For reproducible layout checks, `python3 tests/desktop_check.py` creates a temporary virtual output in a running Hyprland session, exercises additional resolutions/scales/bar sizes/font sizes, and removes the output and test process afterward. Physical monitor settings are unchanged. Add `--screenshots` to refresh the three repository previews using only authored sample transcripts. See [validation notes](VALIDATION.md) for tested coverage.
 
 ![The drawer above a bottom bar](screenshots/bottom-bar.png)
 

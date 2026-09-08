@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — 1.0.0-dev.1
+## Unreleased — 1.0.0-rc.1
 
 - DictDrawer branding with the matching `dictdrawer` plugin ID and install directory.
 - Sliding drawer that emerges from behind any bar edge.
@@ -9,3 +9,6 @@
 - Verified clipboard copy, refresh, folder access, and actionable error states.
 - Compact keycap legend, theme-aware colors, and sample-only release previews.
 - Steady full-height search results, including loading and no-match states.
+- Type-to-search with normal text editing; Enter copies and Escape clears before closing.
+- Per-day local transcript folders, with interruption-safe migration and conflict preservation.
+- Automated keyboard tests and an opt-in virtual-display layout/screenshot check.

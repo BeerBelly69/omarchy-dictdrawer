@@ -202,9 +202,24 @@ Panel {
     }
   }
 
-  function search() {
+  function search(initialText) {
     searchShown = true
-    Qt.callLater(function() { searchField.forceActiveFocus(); searchField.selectAll() })
+    searchField.forceActiveFocus()
+    if (typeof initialText === "string") {
+      searchField.text = initialText
+      searchField.cursorPosition = searchField.text.length
+    } else searchField.selectAll()
+  }
+
+  function escapeSearch() {
+    if (searchField.text.length) {
+      searchField.clear()
+      searchShown = false
+      keyCatcher.forceActiveFocus()
+    } else {
+      searchShown = false
+      close()
+    }
   }
 
   function moveSelection(dy, dx) {
@@ -252,15 +267,15 @@ Panel {
     contentWidth: panel.fittedContentWidth(Style.space(620))
     contentHeight: panel.fittedContentHeight(column.implicitHeight)
 
-    PanelKeyCatcher {
+    SearchKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
       blocked: searchField.activeFocus
-      onCloseRequested: root.close()
+      onCloseRequested: root.escapeSearch()
       onMoveRequested: function(dx, dy) { root.moveSelection(dy, dx) }
       onActivateRequested: root.copy(root.selectedIndex)
-      onTextKey: function(text) { if (text === "/" || text.toLowerCase() === "f" || text === "\u0006") root.search() }
-      onTabRequested: root.search()
+      onTextKey: function(text) { root.search(text) }
+      onSearchRequested: root.search()
 
       Column {
         id: column
@@ -485,9 +500,10 @@ Panel {
               searchTimer.restart()
             }
             Keys.onPressed: function(event) {
-              if (event.key === Qt.Key_Escape) {
-                if (text.length) clear()
-                else { root.searchShown = false; keyCatcher.forceActiveFocus() }
+              if (event.key === Qt.Key_F && (event.modifiers & Qt.ControlModifier)) {
+                selectAll()
+              } else if (event.key === Qt.Key_Escape) {
+                root.escapeSearch()
               } else if (event.key === Qt.Key_Down || event.key === Qt.Key_Up) {
                 root.moveSelection(event.key === Qt.Key_Down ? 1 : -1, 0)
               } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
@@ -510,7 +526,7 @@ Panel {
               radius: Style.space(8)
               iconText: "󰍉"
               fontSize: Style.font.iconLarge
-              tooltipText: root.searchShown ? root.matched + " matching dictations" : "Search all history · Ctrl+F or /"
+              tooltipText: root.searchShown ? root.matched + " matching dictations" : "Just type to search · Ctrl+F"
               onClicked: root.search()
             }
             PanelActionButton {

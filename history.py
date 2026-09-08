@@ -2,6 +2,7 @@
 """Local Voxtype history. Only stdlib; stdout is the plugin's JSON protocol."""
 
 import argparse
+import fcntl
 import hashlib
 import html
 import json
@@ -17,6 +18,7 @@ from datetime import datetime
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 MODERN = re.compile(r"^(\d+)-([a-f0-9]{20})\.txt$")
 LEGACY = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}\.txt$")
+DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 JOURNAL_LIMIT = 50000
 
 
@@ -79,7 +81,19 @@ def read_archive(directory):
     rows, legacy, unreadable = [], [], 0
     if not directory.exists():
         return rows, legacy, ""
-    for path in directory.iterdir():
+    # Date folders first, then flat compatibility files. An unresolved flat
+    # conflict wins in merge_rows; neither copy is overwritten or discarded.
+    flat = list(directory.iterdir())
+    paths = []
+    for folder in sorted(flat):
+        if folder.is_symlink() or not DAY.fullmatch(folder.name) or not folder.is_dir():
+            continue
+        try:
+            paths.extend(sorted(folder.iterdir()))
+        except OSError:
+            unreadable += 1
+    paths.extend(sorted(flat))
+    for path in paths:
         modern = MODERN.fullmatch(path.name)
         old = LEGACY.fullmatch(path.name)
         if path.is_symlink() or not (modern or old) or not path.is_file():
@@ -100,17 +114,74 @@ def read_archive(directory):
                 legacy.append(row)
         except (OSError, ValueError, OverflowError):
             unreadable += 1
-    warning = f"Skipped {unreadable} unreadable archive file(s)." if unreadable else ""
+    warning = f"Skipped {unreadable} unreadable archive file(s) or folder(s)." if unreadable else ""
     return rows, legacy, warning
+
+
+def day_directory(directory, stamp):
+    day = directory / datetime.fromtimestamp(stamp).strftime("%Y-%m-%d")
+    if day.is_symlink():
+        raise OSError("Refusing a symlinked date folder")
+    day.mkdir(mode=0o700, parents=True, exist_ok=True)
+    return day
+
+
+def migrate_flat_archive(directory):
+    """Move known flat files into date folders, without replacing any file.
+
+    Called under the snapshot lock. Linking before unlinking also leaves a
+    complete readable copy after an interruption; the next pass is idempotent.
+    """
+    failed = 0
+    for source in sorted(directory.iterdir()):
+        modern = MODERN.fullmatch(source.name)
+        legacy = LEGACY.fullmatch(source.name)
+        if source.is_symlink() or not (modern or legacy) or not source.is_file():
+            continue
+        try:
+            stamp = int(modern[1]) / 1_000_000 if modern else datetime.strptime(source.stem, "%Y-%m-%d_%H%M%S").timestamp()
+            destination = day_directory(directory, stamp) / source.name
+            if destination.is_symlink():
+                raise OSError("Refusing a symlinked transcript")
+            try:
+                os.link(source, destination, follow_symlinks=False)
+            except FileExistsError:
+                if source.read_bytes() != destination.read_bytes():
+                    failed += 1
+                    continue
+            source.unlink()
+        except (OSError, ValueError, OverflowError):
+            failed += 1
+    return f"Could not organize {failed} flat file(s); originals were kept. Check date-folder permissions or conflicting copies." if failed else ""
+
+
+def archive_snapshot(directory, organize):
+    if not directory.exists():
+        return [], [], ""
+    # Serialize reorganization with reads from other monitor instances. Journal
+    # access is outside this short lock, so typing never waits for journalctl.
+    try:
+        fd = os.open(directory / ".dictdrawer.lock", os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    except OSError:
+        saved, legacy, warning = read_archive(directory)
+        return saved, legacy, " ".join(filter(None, [warning, "Cannot lock the history folder; showing saved files without reorganizing them."]))
+    with os.fdopen(fd, "r+") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX if organize else fcntl.LOCK_SH)
+        migration_warning = migrate_flat_archive(directory) if organize else ""
+        saved, legacy, warning = read_archive(directory)
+        return saved, legacy, " ".join(filter(None, [migration_warning, warning]))
 
 
 def save_row(directory, row):
     """Publish a complete file without replacing an existing one, across monitors."""
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
-    target = directory / (row["id"] + ".txt")
+    day = day_directory(directory, row["ts"])
+    target = day / (row["id"] + ".txt")
+    if target.is_symlink():
+        raise OSError("Refusing a symlinked transcript")
     if target.exists():
         return
-    fd, temporary = tempfile.mkstemp(prefix=".pending-", dir=directory)
+    fd, temporary = tempfile.mkstemp(prefix=".pending-", dir=day)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as output:
             output.write(row["text"] + "\n")
@@ -191,7 +262,7 @@ def search_display(text, tokens):
 
 def load_history(directory, query="", limit=20, sync=True):
     warnings = []
-    saved, legacy, warning = read_archive(directory)
+    saved, legacy, warning = archive_snapshot(directory, organize=sync)
     if warning:
         warnings.append(warning)
     journal = []
@@ -206,8 +277,10 @@ def load_history(directory, query="", limit=20, sync=True):
             warnings.append("Voxtype is not installed. Saved history remains available.")
         try:
             directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+            saved_ids = {row["id"] for row in saved}
             for row in sorted(journal, key=lambda row: row["ts"]):
-                save_row(directory, row)
+                if row["id"] not in saved_ids:
+                    save_row(directory, row)
         except OSError:
             warnings.append("Cannot save transcripts. Check permissions and free space in the history folder.")
     rows = merge_rows(saved, legacy, journal)

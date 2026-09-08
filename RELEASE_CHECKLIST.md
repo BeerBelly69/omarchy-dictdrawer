@@ -17,9 +17,10 @@ This repository is private for review. Do not change its visibility, create a pu
 ## Before public release
 
 - [ ] Review the README, name, screenshots, and current behavior on GitHub.
-- [ ] Finish the proposed date-folder storage: keep all saved transcripts in local-date folders, while limiting only the default drawer view. Preserve existing text and search across days; test migration and concurrent writes before reorganizing live files.
-- [ ] Confirm and implement type-to-search if desired, resolving letter-navigation shortcuts and normal text-editing behavior.
-- [ ] Refresh screenshots for highlighted search and the fixed-height drawer.
+- [x] Per-day storage with full-history search, safe flat-file migration, and concurrent-read/write tests.
+- [x] Type-to-search, resolving letter-navigation shortcuts and preserving normal text editing.
+- [x] Refresh screenshots for highlighted search and the fixed-height drawer.
+- [x] Validate scaling, smaller displays, thick bars, and large fonts; see [validation notes](VALIDATION.md).
 - [ ] Verify a clean install, update, disable, and removal without disturbing Voxtype configuration or saved transcripts.
 - [ ] Verify CI passes on the final release commit.
 - [ ] Obtain owner approval to make the repository public.
@@ -28,6 +29,6 @@ This repository is private for review. Do not change its visibility, create a pu
 
 ## Scope and compatibility
 
-There is no separate Archive/Trash interface or automatic deletion policy in this build. The rolling count controls display, not storage retention. Files currently remain in the existing flat history directory; day-based folders are not implemented yet.
+There is no separate Archive/Trash interface or automatic deletion policy in this build. The rolling count controls display, not storage retention. Transcripts are saved in per-day folders; existing flat files are safely reorganized on opening or refreshing.
 
 The plugin ID is `dictdrawer`, matching the DictDrawer name. Omarchy installs it in `~/.config/omarchy/plugins/dictdrawer/`; bar settings and shell commands use the same ID. The transcript storage location is independent of the plugin ID and is unchanged.
