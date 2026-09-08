@@ -18,7 +18,8 @@ This repository is private for review. Do not change its visibility, create a pu
 ## Before public release
 
 - [ ] Review the README, name, screenshots, and current behavior on GitHub.
-- [ ] Verify one live Handy dictation and post-processed excerpt before advertising end-to-end Handy compatibility (fixtures pass; Handy is not installed locally).
+- [x] Verify a real Handy microphone recording imports automatically with exact text and no duplicate (Handy 0.9.6; shell restart needed to load the updated plugin).
+- [ ] Verify live Handy AI post-processing before advertising it as end-to-end tested (fixture and isolated UI tests pass; no live provider configured).
 - [x] Per-day storage with full-history search, safe flat-file migration, and concurrent-read/write tests.
 - [x] Type-to-search, resolving letter-navigation shortcuts and preserving normal text editing.
 - [x] Refresh screenshots for highlighted search and the fixed-height drawer.

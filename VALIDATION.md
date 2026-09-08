@@ -10,7 +10,9 @@ Checked on 2026-09-08 with Omarchy 4.0.2, Hyprland 0.56.2, Quickshell 0.3.1, and
 
 The storage tests cover concurrent migration/readers, atomic saves, interrupted moves, conflicting files, edited text, exact byte/permission preservation, and symlink rejection. Search reaches every date folder regardless of the recent-excerpt display limit.
 
-Handy tests use authored SQLite fixtures matching upstream's `transcription_history` table. They cover original/post-processed text, delayed completion, same-second entries, retention, manual edits, database byte preservation, committed WAL entries, busy/corrupt/missing databases, older schemas, custom/XDG paths, concurrent monitor imports, interrupted index writes, search highlighting, and independent Voxtype cursors. Handy is not installed on this machine, so a real recording-to-drawer check remains outstanding; fixture validation is not a claim of live end-to-end verification.
+Handy tests use authored SQLite fixtures matching upstream's `transcription_history` table. They cover original/post-processed text, delayed completion, same-second entries, retention, manual edits, database byte preservation, committed WAL entries, busy/corrupt/missing databases, older schemas, custom/XDG paths, concurrent monitor imports, interrupted index writes, search highlighting, and independent Voxtype cursors.
+
+Live Handy 0.9.6 validation on 2026-09-08 used a real microphone recording with the Canary 180M Flash Q8_0 model. The CLI recording toggle worked; the app's Ctrl+Space shortcut did not work in this Hyprland session. Handy produced an audio recording and a non-empty transcript. The installed shell initially retained pre-update QML; after `omarchy restart shell`, DictDrawer automatically imported the real transcript with exact text, one archive copy, and no warnings. No test audio or transcript text was added to this repository. AI post-processing was disabled, so live post-processing remains unverified; its adapter behavior is covered by fixtures and the isolated UI test below.
 
 ## Layout checks
 

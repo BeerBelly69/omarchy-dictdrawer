@@ -41,7 +41,9 @@ DictDrawer checks Handy every 10 seconds while the widget is enabled, even with 
 
 Handy's own retention settings still apply to its database. DictDrawer keeps the text it has already imported, but cannot recover entries Handy removed before a check (or while the widget was disabled). Deleting an entry in Handy does **not** delete DictDrawer's copy.
 
-The adapter is based on [Handy's history schema](https://github.com/cjpais/Handy/blob/main/src-tauri/src/managers/history.rs). It is covered by SQLite fixtures, including WAL and post-processing updates; a live Handy recording has not yet been tested on this machine.
+The adapter is based on [Handy's history schema](https://github.com/cjpais/Handy/blob/main/src-tauri/src/managers/history.rs). A real microphone recording with Handy 0.9.6 was verified to import automatically with exact text and no duplicate. WAL handling and post-processing updates also pass SQLite fixture tests; live AI post-processing has not yet been verified.
+
+On Hyprland/Wayland, configure Handy's recording shortcut through the desktop using `handy --toggle-transcription`; the shortcut shown inside Handy may not work globally. This is separate from DictDrawer's drawer shortcut. See [Handy's Linux notes](https://github.com/cjpais/Handy#linux-notes). After updating DictDrawer from a version without Handy support, restart the shell if it retains the old plugin code: `omarchy restart shell`.
 
 ## Install
 
