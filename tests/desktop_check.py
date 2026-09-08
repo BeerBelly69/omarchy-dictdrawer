@@ -55,7 +55,11 @@ def check(state):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--screenshots", action="store_true")
+    parser.add_argument("--wallpaper", type=Path, default=Path.home() / ".local/state/omarchy/current/theme/backgrounds/omarchy.png",
+                        help="Preview-only wallpaper; defaults to the active theme's Omarchy wallpaper")
     args = parser.parse_args()
+    if args.screenshots and not args.wallpaper.is_file():
+        parser.error("Wallpaper not found; specify --wallpaper /absolute/path/to/image")
     signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
     if any(m["name"] == OUTPUT for m in json.loads(run("hyprctl", "monitors", "all", "-j"))):
         raise RuntimeError(f"{OUTPUT} already exists; refusing to reuse or remove someone else's output")
@@ -97,10 +101,12 @@ def main():
             drawer_source = drawer_source.replace('model: root.open ? Quickshell.screens : []', 'model: []')
             drawer.write_text(drawer_source)
             samples = [
-                "Let’s keep the first release focused: a fast drawer, reliable saved history, and search that finds the words you need.",
-                "For the project notes, add a short installation guide and a screenshot with sample dictations. Keep setup simple.",
-                "A thought for tomorrow: revisit the project notes and choose the next small improvement after the release.",
-                "Pick up coffee, oat milk, and something fresh for dinner on the way home.",
+                "Call it DictDrawer. “Nice Dict” tested well, but nobody wanted to explain it at work.",
+                "Slide it in gently. Behind the toolbar. We’ve been over this.",
+                "Release checklist: polish it, take a few tasteful pictures, then let people play with it.",
+                "We spent all afternoon rounding the corners. Apparently we’re both really into curves.",
+                "Twenty excerpts should be enough. Make it adjustable for people who insist they can handle more.",
+                "It was supposed to be a quick dictation. Now it’s longer than expected and we’re naming it.",
             ]
             data = stage / "data"
             for i, text in enumerate(samples):
@@ -109,7 +115,8 @@ def main():
             journal = stage / "bin/journalctl"
             journal.write_text("#!/bin/sh\nexit 0\n")
             journal.chmod(0o700)
-            env = dict(os.environ, XDG_DATA_HOME=str(data), PATH=str(stage / "bin") + os.pathsep + os.environ["PATH"])
+            env = dict(os.environ, XDG_DATA_HOME=str(data), PATH=str(stage / "bin") + os.pathsep + os.environ["PATH"],
+                       DICTDRAWER_QA_WALLPAPER=args.wallpaper.resolve().as_uri() if args.wallpaper.is_file() else "")
             run("hyprctl", "output", "create", "headless", OUTPUT)
             created = True
             monitor("1920x1080", 1)
@@ -148,11 +155,17 @@ def main():
                 assert len(set(sizes)) == 1, sizes
                 print(f"PASS {cases} layout cases; search geometry remains stable", flush=True)
                 if args.screenshots:
+                    # More vertical space reveals the stock wallpaper's logo
+                    # beyond the drawer, without moving or editing the image.
+                    monitor("1920x1600", 1)
+                    ipc("setup", "top", 38, 14)
                     def capture(path, bottom=False):
                         screen = next(m for m in json.loads(run("hyprctl", "monitors", "-j")) if m["name"] == OUTPUT)
-                        region = f'{screen["x"] + 560},{screen["y"] + (1080 - 690 if bottom else 0)} 800x690'
+                        appearance = json.loads(ipc("appearance"))
+                        assert appearance["bar"] == appearance["expectedBar"] and appearance["wallpaperReady"], appearance
+                        region = f'{screen["x"] + 460},{screen["y"] + (1600 - 1020 if bottom else 0)} 1000x1020'
                         run("grim", "-g", region, str(path))
-                    time.sleep(0.3)
+                    time.sleep(0.6)
                     capture(ROOT / "preview.png")
                     ipc("query", "release")
                     time.sleep(0.35)
@@ -179,11 +192,11 @@ def main():
                         time.sleep(0.2)
                     raise AssertionError(snapshot())
                 state = await_text("Handy integration sample")
-                assert not state["open"] and state["rows"] == 5, state
+                assert not state["open"] and state["rows"] == len(samples) + 1, state
                 with sqlite3.connect(handy_db) as db:
                     db.execute("UPDATE transcription_history SET post_processed_text = 'Handy polished sample'")
                 state = await_text("Handy polished sample")
-                assert state["rows"] == 5, state
+                assert state["rows"] == len(samples) + 1, state
                 changes = state["modelChanges"]
                 time.sleep(10.5)
                 state = snapshot()

@@ -16,13 +16,12 @@ ShellRoot {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "dictdrawer-qa-backdrop"
-    color: "#161e25"
-    Rectangle {
+    color: Color.background
+    Image {
+      id: wallpaper
       anchors.fill: parent
-      gradient: Gradient {
-        GradientStop { position: 0; color: "#172d35" }
-        GradientStop { position: 1; color: "#14151c" }
-      }
+      source: Quickshell.env("DICTDRAWER_QA_WALLPAPER")
+      fillMode: Image.PreserveAspectFit
     }
   }
   PanelWindow {
@@ -35,11 +34,11 @@ ShellRoot {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.namespace: "dictdrawer-qa-bar"
-    color: "#0f131a"
+    color: Color.bar.background
     property string position: "top"
     property bool vertical: position === "left" || position === "right"
     property int barSize: 38
-    property color foreground: Color.foreground
+    property color foreground: Color.bar.text
     property color barForeground: foreground
     property color urgent: Color.urgent
     property string fontFamily: Style.font.family
@@ -72,6 +71,10 @@ ShellRoot {
     function query(value: string): void { widget.qaQuery(value) }
     function close(): void { widget.close() }
     function state(): string { return widget.qaState() }
+    function appearance(): string {
+      return JSON.stringify({bar: previewBar.color.toString(), expectedBar: Color.bar.background.toString(),
+        wallpaperReady: wallpaper.status === Image.Ready})
+    }
     function quit(): void { Qt.quit() }
   }
   Timer { id: reopen; interval: 100; onTriggered: widget.open() }

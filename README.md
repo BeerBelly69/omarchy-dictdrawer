@@ -148,4 +148,4 @@ Manual checks on Omarchy 4.0.2 covered top/bottom/left/right bar layouts, 1× an
 
 ## License
 
-MIT. The drawer's focus and popup coordination are adapted from Omarchy's `Ui/KeyboardPanel.qml`; its copyright notice is retained in [LICENSE](LICENSE). The screenshots and sample dictations were created for this project.
+MIT. The drawer's focus and popup coordination are adapted from Omarchy's `Ui/KeyboardPanel.qml`; its copyright notice is retained in [LICENSE](LICENSE). The screenshots and fictional sample dictations were created for this project. The screenshots show Omarchy's stock Everforest palette and Omarchy-logo wallpaper; the wallpaper and branding belong to the [Omarchy project](https://github.com/basecamp/omarchy).

@@ -41,4 +41,4 @@ GitHub Actions runs both the Python and offscreen Qt keyboard suites. The releas
 
 ## Screenshots
 
-The three repository PNGs were refreshed from the release-candidate components using authored sample transcripts. Search shows highlighted matches and the same full-height drawer as the normal view. No live desktop content or personal dictations is included.
+The three repository PNGs were refreshed from the release-candidate components using fictional development-session dictations, with “Release checklist” third. Search highlights that excerpt and retains the same full-height drawer as the normal view. The preview bar reads the active theme's actual bar colors instead of hard-coded colors, and the wider 1000×1020 framing includes the stock Everforest Omarchy-logo wallpaper. The screenshot runner verifies matching bar colors and a loaded wallpaper before capture; `--wallpaper` can select another local image for the isolated preview. No live desktop content or personal dictations is included, and physical desktop theme/background settings are unchanged.
