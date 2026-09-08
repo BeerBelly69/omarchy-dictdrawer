@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+"""Local Voxtype history. Only stdlib; stdout is the plugin's JSON protocol."""
+
+import argparse
+import hashlib
+import html
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from datetime import datetime
+
+ANSI = re.compile(r"\x1b\[[0-9;]*m")
+MODERN = re.compile(r"^(\d+)-([a-f0-9]{20})\.txt$")
+LEGACY = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}\.txt$")
+JOURNAL_LIMIT = 50000
+
+
+def archive_dir():
+    data_home = os.environ.get("XDG_DATA_HOME")
+    base = Path(data_home) if data_home and Path(data_home).is_absolute() else Path.home() / ".local/share"
+    return base / "voxtype/history"
+
+
+def make_row(micros, text):
+    micros = int(micros)
+    digest = hashlib.sha256(f"{micros}\0{text}".encode()).hexdigest()[:20]
+    return {"id": f"{micros}-{digest}", "ts": micros / 1_000_000, "text": text}
+
+
+def parse_journal(line):
+    try:
+        rec = json.loads(line)
+        message = rec.get("MESSAGE", "")
+        if isinstance(message, list):
+            message = bytes(message).decode("utf-8", "replace")
+        if not isinstance(message, str):
+            return None
+        message = ANSI.sub("", message)
+        marker = "INFO Transcribed:"
+        if marker not in message:
+            return None
+        text = message.split(marker, 1)[1].strip()
+        if text.startswith('"') and text.endswith('"'):
+            text = text[1:-1]
+        if text:
+            return make_row(rec["__REALTIME_TIMESTAMP"], text)
+    except (ValueError, TypeError, KeyError, OverflowError, AttributeError):
+        pass
+    return None
+
+
+def read_journal(since=None):
+    command = ["journalctl", "--user", "-u", "voxtype.service", "-o", "json", "--no-pager", "-r", "-n", str(JOURNAL_LIMIT)]
+    if since is not None:
+        command += ["--since", f"@{max(0, since - 1):.6f}"]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=8, check=False)
+    except FileNotFoundError:
+        return [], "journalctl is missing. Install systemd to read Voxtype history."
+    except subprocess.TimeoutExpired:
+        return [], "Reading the journal timed out. Showing saved history; try Refresh."
+    except OSError:
+        return [], "Cannot read the user journal. Showing saved history."
+    if result.returncode:
+        return [], "Cannot read the user journal. Check journalctl --user -u voxtype.service."
+    rows = [row for line in result.stdout.splitlines() if (row := parse_journal(line))]
+    warning = "" if not result.stderr.strip() else "The journal reported a warning. Some history may be unavailable."
+    if len(result.stdout.splitlines()) >= JOURNAL_LIMIT:
+        warning = f"Journal import is limited to the newest {JOURNAL_LIMIT:,} log records. Saved history is still searchable."
+    return rows, warning
+
+
+def read_archive(directory):
+    rows, legacy, unreadable = [], [], 0
+    if not directory.exists():
+        return rows, legacy, ""
+    for path in directory.iterdir():
+        modern = MODERN.fullmatch(path.name)
+        old = LEGACY.fullmatch(path.name)
+        if path.is_symlink() or not (modern or old) or not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8").removesuffix("\n")
+            if not text:
+                continue
+            if modern:
+                row = make_row(modern[1], text)
+                # Stable identity is the filename even if someone edits the text.
+                row["id"] = path.stem
+                rows.append(row)
+            else:
+                stamp = datetime.strptime(path.stem, "%Y-%m-%d_%H%M%S").timestamp()
+                row = make_row(round(stamp * 1_000_000), text)
+                row["id"] = "legacy-" + path.stem
+                legacy.append(row)
+        except (OSError, ValueError, OverflowError):
+            unreadable += 1
+    warning = f"Skipped {unreadable} unreadable archive file(s)." if unreadable else ""
+    return rows, legacy, warning
+
+
+def save_row(directory, row):
+    """Publish a complete file without replacing an existing one, across monitors."""
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    target = directory / (row["id"] + ".txt")
+    if target.exists():
+        return
+    fd, temporary = tempfile.mkstemp(prefix=".pending-", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as output:
+            output.write(row["text"] + "\n")
+            output.flush()
+            os.fsync(output.fileno())
+        try:
+            os.link(temporary, target)
+        except FileExistsError:
+            pass
+    finally:
+        os.unlink(temporary)
+
+
+def merge_rows(saved, legacy, journal):
+    combined = {row["id"]: row for row in journal}
+    combined.update({row["id"]: row for row in saved})
+    # Old filenames only have second precision. Suppress their duplicate of
+    # an exact journal record, but keep distinct same-second journal entries.
+    exact = {(int(row["ts"]), row["text"]) for row in combined.values()}
+    for row in legacy:
+        if (int(row["ts"]), row["text"]) not in exact:
+            combined[row["id"]] = row
+    return sorted(combined.values(), key=lambda row: (row["ts"], row["id"]), reverse=True)
+
+
+def search_display(text, tokens):
+    """Highlight literal casefold matches without interpreting transcript HTML."""
+    folded = text.casefold()
+    # Case folding can expand characters (ß -> ss). Map back to the original
+    # characters, so highlighting uses exactly the same rules as filtering.
+    positions = [i for i, char in enumerate(text) for _ in char.casefold()]
+    ranges = []
+    for token in set(tokens):
+        if not token:
+            continue
+        start = folded.find(token)
+        while start != -1:
+            ranges.append((positions[start], positions[start + len(token) - 1] + 1))
+            start = folded.find(token, start + 1)
+    merged = []
+    for start, end in sorted(ranges):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
+        else:
+            merged.append((start, end))
+
+    def render(begin, finish, preview=False):
+        def escape(value):
+            if preview:
+                value = value.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+            return html.escape(value).replace("\n", "<br>")
+        parts = ["… " if begin else ""]
+        cursor = begin
+        for start, end in merged:
+            start, end = max(begin, start), min(finish, end)
+            if start >= end:
+                continue
+            parts.append(escape(text[cursor:start]))
+            parts.append('<span style="background-color:#f4cf65;color:#241d0f">'
+                         + escape(text[start:end]) + '</span>')
+            cursor = end
+        parts.append(escape(text[cursor:finish]))
+        if finish < len(text):
+            parts.append(" …")
+        return "".join(parts)
+
+    # Put a buried match in view, with a little lead-in and no cut-off words.
+    first_start, first_end = merged[0] if merged else (0, 0)
+    begin = max(0, first_start - 55)
+    while 0 < begin < first_start and not text[begin - 1].isspace():
+        begin += 1
+    finish = min(len(text), max(begin + 240, first_end))
+    while finish < len(text) and finish > first_end and not text[finish].isspace():
+        finish -= 1
+    return {"highlightedText": render(0, len(text)),
+            "highlightedPreview": render(begin, finish, preview=True)}
+
+
+def load_history(directory, query="", limit=20, sync=True):
+    warnings = []
+    saved, legacy, warning = read_archive(directory)
+    if warning:
+        warnings.append(warning)
+    journal = []
+    if sync:
+        # Include the newest second again, so simultaneous transcripts aren't
+        # missed. First import is bounded; the archive itself has no row cap.
+        since = max((row["ts"] for row in saved), default=None)
+        journal, warning = read_journal(since)
+        if warning:
+            warnings.append(warning)
+        if not shutil.which("voxtype"):
+            warnings.append("Voxtype is not installed. Saved history remains available.")
+        try:
+            directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+            for row in sorted(journal, key=lambda row: row["ts"]):
+                save_row(directory, row)
+        except OSError:
+            warnings.append("Cannot save transcripts. Check permissions and free space in the history folder.")
+    rows = merge_rows(saved, legacy, journal)
+    tokens = query.casefold().split()
+    matches = [row for row in rows if all(token in row["text"].casefold() for token in tokens)]
+    displayed = [dict(row, **search_display(row["text"], tokens)) if tokens else row
+                 for row in matches[:limit]]
+    return {"rows": displayed, "total": len(rows), "matched": len(matches),
+            "warning": " ".join(warnings), "archiveDir": str(directory)}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--query", default="")
+    parser.add_argument("--limit", type=int, default=20)
+    parser.add_argument("--no-sync", action="store_true", help="Search saved history without reading the journal")
+    args = parser.parse_args()
+    try:
+        result = load_history(archive_dir(), args.query, max(1, min(100, args.limit)), not args.no_sync)
+    except OSError:
+        print(json.dumps({"error": "Cannot open the history folder. Check its permissions.", "rows": []}))
+        return 1
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

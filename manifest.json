@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "mbelli.dictation",
+  "name": "DictDrawer",
+  "version": "1.0.0-dev.1",
+  "author": "mbelli",
+  "license": "MIT",
+  "description": "A sliding Voxtype history drawer with persistent local transcripts, full-history search, and one-click copy",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "DictDrawer",
+    "description": "Recover, search, and copy Voxtype dictations from your local history.",
+    "category": "Productivity",
+    "defaultSection": "center",
+    "aliases": [
+      "voxtype",
+      "dictation"
+    ],
+    "allowMultiple": false,
+    "defaults": {
+      "limit": 20
+    },
+    "schema": [
+      {
+        "key": "limit",
+        "type": "integer",
+        "label": "Dictations shown",
+        "min": 5,
+        "max": 100,
+        "step": 5,
+        "defaultValue": 20
+      }
+    ]
+  }
+}
