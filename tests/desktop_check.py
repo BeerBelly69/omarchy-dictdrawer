@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -70,12 +71,17 @@ def main():
             # Instrument only the throwaway copy. No test IPC is installed.
             panel = plugin / "Panel.qml"
             panel.write_text(panel.read_text().replace('  id: root\n', '''  id: root
+  property int qaModelChanges: 0
+  onRowsChanged: qaModelChanges++
   function qaQuery(value) {
     if (value.length) search(value)
     else { searchField.clear(); searchShown = false }
   }
   function qaState() {
     return JSON.stringify({open: opened, query: resultsQuery, rows: rows.length,
+      topText: rows.length ? rows[0].text : "", modelChanges: qaModelChanges,
+      highlighted: rows.length ? rows[0].highlightedText || "" : "",
+      searchBusy: searchBusy,
       x: panel.cardOrigin.x, y: panel.cardOrigin.y, width: panel.contentWidth, height: panel.contentHeight,
       screenW: panel.screenW, screenH: panel.screenH, side: panel.barPos,
       bar: panel.barPos === "top" || panel.barPos === "bottom" ? panel.barH : panel.barW,
@@ -156,6 +162,39 @@ def main():
                     time.sleep(0.45)
                     capture(ROOT / "screenshots/bottom-bar.png", bottom=True)
                     print("Captured three sample-only release screenshots", flush=True)
+                # A synthetic Handy database exercises the real 10-second
+                # background timer, helper arguments, archive and UI together.
+                handy_db = data / "com.pais.handy/history.db"
+                handy_db.parent.mkdir()
+                with sqlite3.connect(handy_db) as db:
+                    db.execute("CREATE TABLE transcription_history (id INTEGER, timestamp INTEGER, file_name TEXT, transcription_text TEXT, post_processed_text TEXT)")
+                    db.execute("INSERT INTO transcription_history VALUES (1, 1788964200, 'sample.wav', 'Handy integration sample', NULL)")
+                ipc("close")
+                def await_text(expected):
+                    deadline = time.monotonic() + 13
+                    while time.monotonic() < deadline:
+                        state = snapshot()
+                        if state["topText"] == expected:
+                            return state
+                        time.sleep(0.2)
+                    raise AssertionError(snapshot())
+                state = await_text("Handy integration sample")
+                assert not state["open"] and state["rows"] == 5, state
+                with sqlite3.connect(handy_db) as db:
+                    db.execute("UPDATE transcription_history SET post_processed_text = 'Handy polished sample'")
+                state = await_text("Handy polished sample")
+                assert state["rows"] == 5, state
+                changes = state["modelChanges"]
+                time.sleep(10.5)
+                state = snapshot()
+                assert state["modelChanges"] == changes and not state["searchBusy"], state
+                ipc("setup", "top", 38, 14)
+                ipc("query", "polished")
+                time.sleep(0.4)
+                state = snapshot()
+                assert state["rows"] == 1 and ">polished</span>" in state["highlighted"], state
+                check(state)
+                print("PASS Handy background import while closed, post-processing update, quiet idle refresh, and highlighted search", flush=True)
                 ipc("quit")
                 process.wait(timeout=5)
                 log.seek(0)

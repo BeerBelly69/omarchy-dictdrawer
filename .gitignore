@@ -3,3 +3,10 @@ __pycache__/
 *.bak
 *.backup*
 .venv/
+# Runtime dictation data must never be included in the release package.
+*.db
+*.db-wal
+*.db-shm
+*.wav
+.handy-imports.json
+.handy.lock

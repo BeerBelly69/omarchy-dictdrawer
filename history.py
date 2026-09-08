@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local Voxtype history. Only stdlib; stdout is the plugin's JSON protocol."""
+"""Local Voxtype and Handy history. Stdlib only; stdout is the JSON protocol."""
 
 import argparse
 import fcntl
@@ -13,10 +13,13 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import sqlite3
 from datetime import datetime
+import handy
 
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 MODERN = re.compile(r"^(\d+)-([a-f0-9]{20})\.txt$")
+HANDY = re.compile(r"^handy-(\d+)-([a-f0-9]{20})\.txt$")
 LEGACY = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}\.txt$")
 DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 JOURNAL_LIMIT = 50000
@@ -94,7 +97,8 @@ def read_archive(directory):
             unreadable += 1
     paths.extend(sorted(flat))
     for path in paths:
-        modern = MODERN.fullmatch(path.name)
+        handy_match = HANDY.fullmatch(path.name)
+        modern = MODERN.fullmatch(path.name) or handy_match
         old = LEGACY.fullmatch(path.name)
         if path.is_symlink() or not (modern or old) or not path.is_file():
             continue
@@ -106,6 +110,8 @@ def read_archive(directory):
                 row = make_row(modern[1], text)
                 # Stable identity is the filename even if someone edits the text.
                 row["id"] = path.stem
+                if handy_match:
+                    row["source"] = "handy"
                 rows.append(row)
             else:
                 stamp = datetime.strptime(path.stem, "%Y-%m-%d_%H%M%S").timestamp()
@@ -260,21 +266,33 @@ def search_display(text, tokens):
             "highlightedPreview": render(begin, finish, preview=True)}
 
 
-def load_history(directory, query="", limit=20, sync=True):
+def load_history(directory, query="", limit=20, sync=True, handy_path="", handy_only=False):
     warnings = []
+    handy_warning = ""
+    handy_available = False
+    if sync:
+        try:
+            db_path = handy.database_path(handy_path)
+            handy_available = db_path.is_file()
+            if handy_available or handy_path:
+                handy_warning = handy.sync_history(directory, db_path, day_directory)
+        except (OSError, ValueError, sqlite3.Error):
+            handy_available = True  # A broken Handy source is not a missing Voxtype install.
+            handy_warning = "Cannot import Handy history. Check its database path, permissions, and version; saved excerpts remain available."
     saved, legacy, warning = archive_snapshot(directory, organize=sync)
     if warning:
         warnings.append(warning)
     journal = []
-    if sync:
+    if sync and not handy_only:
         # Include the newest second again, so simultaneous transcripts aren't
         # missed. First import is bounded; the archive itself has no row cap.
-        since = max((row["ts"] for row in saved), default=None)
-        journal, warning = read_journal(since)
+        since = max((row["ts"] for row in saved if row.get("source") != "handy"), default=None)
+        # Handy-only installations do not need Voxtype or systemd journal access.
+        journal, warning = read_journal(since) if shutil.which("voxtype") or not handy_available else ([], "")
         if warning:
             warnings.append(warning)
-        if not shutil.which("voxtype"):
-            warnings.append("Voxtype is not installed. Saved history remains available.")
+        if not shutil.which("voxtype") and not handy_available:
+            warnings.append("No dictation source detected. Install Voxtype or set Handy's history database path. Saved history remains available.")
         try:
             directory.mkdir(mode=0o700, parents=True, exist_ok=True)
             saved_ids = {row["id"] for row in saved}
@@ -289,17 +307,20 @@ def load_history(directory, query="", limit=20, sync=True):
     displayed = [dict(row, **search_display(row["text"], tokens)) if tokens else row
                  for row in matches[:limit]]
     return {"rows": displayed, "total": len(rows), "matched": len(matches),
-            "warning": " ".join(warnings), "archiveDir": str(directory)}
+            "warning": " ".join(warnings), "handyWarning": handy_warning, "archiveDir": str(directory)}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--query", default="")
     parser.add_argument("--limit", type=int, default=20)
-    parser.add_argument("--no-sync", action="store_true", help="Search saved history without reading the journal")
+    parser.add_argument("--no-sync", action="store_true", help="Search saved history without importing sources")
+    parser.add_argument("--handy-db", default="", help="Absolute Handy history.db path (default: auto-detect)")
+    parser.add_argument("--handy-only", action="store_true", help="Refresh Handy without polling Voxtype's journal")
     args = parser.parse_args()
     try:
-        result = load_history(archive_dir(), args.query, max(1, min(100, args.limit)), not args.no_sync)
+        result = load_history(archive_dir(), args.query, max(1, min(100, args.limit)),
+                              not args.no_sync, args.handy_db, args.handy_only)
     except OSError:
         print(json.dumps({"error": "Cannot open the history folder. Check its permissions.", "rows": []}))
         return 1

@@ -12,11 +12,13 @@ This repository is private for review. Do not change its visibility, create a pu
 - [x] Clipboard, keyboard navigation, and error feedback.
 - [x] README, dependency list, storage/privacy notes, MIT license, and changelog.
 - [x] Automated history tests and a GitHub Actions workflow.
+- [x] Read-only Handy adapter, automatic/custom database path, retention/privacy documentation, and SQLite fixture tests.
 - [x] Sample-only screenshots; no personal transcripts or credentials packaged.
 
 ## Before public release
 
 - [ ] Review the README, name, screenshots, and current behavior on GitHub.
+- [ ] Verify one live Handy dictation and post-processed excerpt before advertising end-to-end Handy compatibility (fixtures pass; Handy is not installed locally).
 - [x] Per-day storage with full-history search, safe flat-file migration, and concurrent-read/write tests.
 - [x] Type-to-search, resolving letter-navigation shortcuts and preserving normal text editing.
 - [x] Refresh screenshots for highlighted search and the fixed-height drawer.

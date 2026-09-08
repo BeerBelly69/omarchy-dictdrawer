@@ -5,7 +5,7 @@
   "version": "1.0.0-rc.1",
   "author": "mbelli",
   "license": "MIT",
-  "description": "A sliding Voxtype history drawer with persistent local transcripts, full-history search, and one-click copy",
+  "description": "A sliding Voxtype and Handy history drawer with persistent local transcripts, full-history search, and one-click copy",
   "kinds": [
     "bar-widget"
   ],
@@ -14,16 +14,18 @@
   },
   "barWidget": {
     "displayName": "DictDrawer",
-    "description": "Recover, search, and copy Voxtype dictations from your local history.",
+    "description": "Recover, search, and copy Voxtype and Handy dictations from your local history.",
     "category": "Productivity",
     "defaultSection": "center",
     "aliases": [
       "voxtype",
+      "handy",
       "dictation"
     ],
     "allowMultiple": false,
     "defaults": {
-      "limit": 20
+      "limit": 20,
+      "handyDatabase": ""
     },
     "schema": [
       {
@@ -34,6 +36,13 @@
         "max": 100,
         "step": 5,
         "defaultValue": 20
+      },
+      {
+        "key": "handyDatabase",
+        "type": "string",
+        "label": "Handy history database",
+        "description": "Optional absolute history.db path for a portable/custom install. Leave empty to auto-detect.",
+        "defaultValue": ""
       }
     ]
   }

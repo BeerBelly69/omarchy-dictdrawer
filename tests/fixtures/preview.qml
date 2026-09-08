@@ -70,6 +70,7 @@ ShellRoot {
       reopen.restart()
     }
     function query(value: string): void { widget.qaQuery(value) }
+    function close(): void { widget.close() }
     function state(): string { return widget.qaState() }
     function quit(): void { Qt.quit() }
   }

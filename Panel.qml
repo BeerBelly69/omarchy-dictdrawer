@@ -6,7 +6,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui
 
-// Recover Voxtype output from the user journal and the local transcript archive.
+// Recover Voxtype and Handy output into the local transcript archive.
 Panel {
   id: root
   moduleName: "dictdrawer"
@@ -17,6 +17,7 @@ Panel {
 
   readonly property string home: Quickshell.env("HOME")
   readonly property int limit: Math.max(5, Math.min(100, Number(root.setting("limit", 20)) || 20))
+  readonly property string handyDatabase: String(root.setting("handyDatabase", "") || "")
   readonly property string helperPath: decodeURIComponent(Qt.resolvedUrl("history.py").toString().replace(/^file:\/\//, ""))
   property string archiveDir: (Quickshell.env("XDG_DATA_HOME") || (root.home + "/.local/share")) + "/voxtype/history"
 
@@ -27,12 +28,15 @@ Panel {
   property int expandedIndex: -1
   property int selectedIndex: 0
   property string errorMessage: ""
-  property string historyWarning: ""
+  property string archiveWarning: ""
+  property string handyWarning: ""
+  readonly property string historyWarning: [archiveWarning, handyWarning].filter(function(s) { return s.length > 0 }).join(" ")
   property int matched: 0
   property int total: 0
   property bool searchShown: false
   property bool syncPending: false
   property bool refreshPending: false
+  readonly property bool searchBusy: searchTimer.running || (historyTimeout.running && (!historyProc.requestHandyOnly || resultsQuery !== searchField.text))
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -62,6 +66,7 @@ Panel {
     id: historyProc
     property string requestQuery: ""
     property bool requestSync: false
+    property bool requestHandyOnly: false
     stdout: StdioCollector { id: historyOutput; waitForEnd: true }
     stderr: StdioCollector { waitForEnd: true }
     onExited: function(exitCode) {
@@ -71,16 +76,31 @@ Panel {
           var parsed = JSON.parse(historyOutput.text)
           if (exitCode !== 0 || parsed.error || !Array.isArray(parsed.rows))
             throw new Error(parsed.error || "Could not load history. Try Refresh.")
-          if (root.resultsQuery !== requestQuery) {
+          var sameQuery = root.resultsQuery === requestQuery
+          var selectedId = sameQuery && root.rows[root.selectedIndex] ? root.rows[root.selectedIndex].id : ""
+          var expandedId = sameQuery && root.rows[root.expandedIndex] ? root.rows[root.expandedIndex].id : ""
+          if (!sameQuery) {
             root.selectedIndex = 0
             root.expandedIndex = -1
           }
-          root.rows = parsed.rows
+          // Idle background checks must not recreate delegates or disturb the
+          // scroll position. Keep the selected excerpt when new entries arrive.
+          if (JSON.stringify(root.rows) !== JSON.stringify(parsed.rows)) {
+            root.rows = parsed.rows
+            if (selectedId.length) {
+              var selected = root.rows.findIndex(function(row) { return row.id === selectedId })
+              if (selected >= 0) root.selectedIndex = selected
+            }
+            root.expandedIndex = expandedId.length ? root.rows.findIndex(function(row) { return row.id === expandedId }) : -1
+          }
           root.resultsQuery = requestQuery
           root.total = parsed.total
           root.matched = parsed.matched
           root.archiveDir = parsed.archiveDir
-          if (requestSync) root.historyWarning = parsed.warning || ""
+          if (requestSync) {
+            if (!requestHandyOnly) root.archiveWarning = parsed.warning || ""
+            root.handyWarning = parsed.handyWarning || ""
+          }
           root.errorMessage = ""
           root.selectedIndex = Math.min(root.selectedIndex, Math.max(0, root.rows.length - 1))
         } catch (error) {
@@ -93,14 +113,19 @@ Panel {
     }
   }
 
-  function refresh(sync) {
+  function refresh(sync, handyOnly) {
+    // Background Handy checks never queue ahead of typing or a full refresh.
+    if (handyOnly && (historyTimeout.running || searchTimer.running || syncPending)) return
     if (sync !== false) syncPending = true
     if (historyTimeout.running) { refreshPending = true; return }
     refreshPending = false
     historyProc.requestQuery = searchField.text
     historyProc.requestSync = syncPending
+    historyProc.requestHandyOnly = handyOnly === true
     var command = ["python3", helperPath, "--limit", String(limit), "--query", searchField.text]
+    if (handyDatabase.length) command.push("--handy-db", handyDatabase)
     if (!syncPending) command.push("--no-sync")
+    else if (handyOnly) command.push("--handy-only")
     syncPending = false
     historyProc.command = command
     historyTimeout.restart()
@@ -123,6 +148,16 @@ Panel {
     onTriggered: root.refresh(false)
   }
 
+  // Handy has no shared recording-state file. Check even while closed so its
+  // own retention cleanup does not remove entries before we import them.
+  Timer {
+    interval: 10000
+    running: true
+    repeat: true
+    triggeredOnStart: true
+    onTriggered: root.refresh(true, true)
+  }
+
   // The state file flips to idle a beat before the daemon logs the text, so
   // give the journal a moment to catch up rather than reading an empty tail.
   Timer {
@@ -142,7 +177,7 @@ Panel {
 
   function copy(index) {
     var row = rows[index]
-    if (!row || resultsQuery !== searchField.text || copyTimeout.running || searchTimer.running || historyTimeout.running) return
+    if (!row || resultsQuery !== searchField.text || copyTimeout.running || searchBusy) return
     errorMessage = ""
     copyProc.rowId = row.id
     copyProc.transcript = String(row.text)
@@ -306,9 +341,9 @@ Panel {
           Text {
             width: parent.width
             visible: root.rows.length === 0
-            text: historyTimeout.running || searchTimer.running ? "Loading dictations…"
+            text: root.searchBusy ? "Loading dictations…"
               : searchField.text.trim() ? "No matching dictations. Try different words."
-              : "No dictations yet. Start Voxtype and dictate to save your first excerpt."
+              : "No dictations yet. Use Voxtype or Handy to save your first excerpt."
             color: root.bar.foreground
             opacity: 0.6
             wrapMode: Text.WordWrap
@@ -481,7 +516,7 @@ Panel {
               anchors.rightMargin: Style.space(8)
               anchors.verticalCenter: parent.verticalCenter
               visible: searchField.text.trim().length > 0
-              text: historyTimeout.running || searchTimer.running ? "Searching…"
+              text: root.searchBusy ? "Searching…"
                 : root.resultsQuery !== searchField.text ? ""
                 : root.matched + (root.matched === 1 ? " match" : " matches")
               color: root.bar.foreground

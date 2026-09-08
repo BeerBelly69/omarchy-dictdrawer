@@ -2,6 +2,7 @@
 
 ## Unreleased — 1.0.0-rc.1
 
+- Read-only Handy support with automatic/custom database discovery, background imports, post-processing updates, and preservation of edited or retained excerpts.
 - DictDrawer branding with the matching `dictdrawer` plugin ID and install directory.
 - Sliding drawer that emerges from behind any bar edge.
 - Persistent local Voxtype transcript recovery and legacy archive support.
