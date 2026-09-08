@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -54,6 +55,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--screenshots", action="store_true")
     args = parser.parse_args()
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
     if any(m["name"] == OUTPUT for m in json.loads(run("hyprctl", "monitors", "all", "-j"))):
         raise RuntimeError(f"{OUTPUT} already exists; refusing to reuse or remove someone else's output")
     created, process = False, None

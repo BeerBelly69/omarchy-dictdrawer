@@ -29,7 +29,11 @@ Earlier physical-display checks covered 1× and 1.5× monitors, opening/closing 
 
 ## Install lifecycle
 
-Final update, disable, remove, and reinstall checks are pending on the release-candidate build. Saved transcripts and Voxtype configuration are backed up before the check; byte comparisons will verify preservation afterward.
+The installed git-managed plugin was updated from the previous review build using `omarchy plugin update dictdrawer --yes`, disabled, removed with the normal Omarchy CLI, and freshly installed with `omarchy plugin add <repository-url> --enable --yes`. The reinstalled package passed validation and loaded under the `dictdrawer` ID after a shell restart.
+
+Before the check, the installed plugin, shell settings, Voxtype config, and saved transcripts were backed up. Afterward, SHA-256 comparisons verified every original transcript file's content was preserved through date-folder migration, removal, and reinstall. Voxtype's config was byte-identical, and widget settings and bar placement were preserved. Both the default 20 and a five-result limit were checked against the full saved history. The Cmd+Alt+apostrophe binding still targets DictDrawer.
+
+GitHub Actions runs both the Python and offscreen Qt keyboard suites. The release-candidate code passed both jobs; repeat these checks after any final release changes.
 
 ## Screenshots
 

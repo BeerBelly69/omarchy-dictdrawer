@@ -1,4 +1,4 @@
-name: History tests
+name: Tests
 on: [push, pull_request]
 permissions:
   contents: read

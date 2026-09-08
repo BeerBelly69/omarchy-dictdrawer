@@ -21,8 +21,8 @@ This repository is private for review. Do not change its visibility, create a pu
 - [x] Type-to-search, resolving letter-navigation shortcuts and preserving normal text editing.
 - [x] Refresh screenshots for highlighted search and the fixed-height drawer.
 - [x] Validate scaling, smaller displays, thick bars, and large fonts; see [validation notes](VALIDATION.md).
-- [ ] Verify a clean install, update, disable, and removal without disturbing Voxtype configuration or saved transcripts.
-- [ ] Verify CI passes on the final release commit.
+- [x] Verify a clean install, update, disable, and removal without disturbing Voxtype configuration or saved transcripts.
+- [x] Verify CI passes on the release candidate; rerun after final release changes.
 - [ ] Obtain owner approval to make the repository public.
 - [ ] Set the final version, tag the approved commit, and publish release notes.
 - [ ] Submit the public repository to the Omarchy marketplace for review.
