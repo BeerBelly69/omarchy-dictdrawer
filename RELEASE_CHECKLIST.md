@@ -1,6 +1,6 @@
-# DictDrawer release review
+# DictDrawer release checklist
 
-This repository is private for review. Do not change its visibility, create a public release, or submit a marketplace listing until the owner approves publication.
+The owner approved public release on 2026-09-08 after private review and live Handy testing. Marketplace submission is a separate step and requires approval of the completed submission and ownership checklist. Published versions are tracked in [GitHub Releases](https://github.com/BeerBelly69/omarchy-dictdrawer/releases).
 
 ## Ready to review
 
@@ -15,20 +15,23 @@ This repository is private for review. Do not change its visibility, create a pu
 - [x] Read-only Handy adapter, automatic/custom database path, retention/privacy documentation, and SQLite fixture tests.
 - [x] Sample-only screenshots; no personal transcripts or credentials packaged.
 
-## Before public release
+## Release readiness
 
-- [ ] Review the README, name, screenshots, and current behavior on GitHub.
+- [x] Review the README, name, screenshots, and current behavior on GitHub.
 - [x] Verify a real Handy microphone recording imports automatically with exact text and no duplicate (Handy 0.9.6; shell restart needed to load the updated plugin).
-- [ ] Verify live Handy AI post-processing before advertising it as end-to-end tested (fixture and isolated UI tests pass; no live provider configured).
 - [x] Per-day storage with full-history search, safe flat-file migration, and concurrent-read/write tests.
 - [x] Type-to-search, resolving letter-navigation shortcuts and preserving normal text editing.
 - [x] Refresh screenshots for highlighted search and the fixed-height drawer.
 - [x] Validate scaling, smaller displays, thick bars, and large fonts; see [validation notes](VALIDATION.md).
 - [x] Verify a clean install, update, disable, and removal without disturbing Voxtype configuration or saved transcripts.
 - [x] Verify CI passes on the release candidate; rerun after final release changes.
-- [ ] Obtain owner approval to make the repository public.
-- [ ] Set the final version, tag the approved commit, and publish release notes.
+- [x] Obtain owner approval to make the repository public.
+- [x] Set version 1.0.0 and prepare release notes in the changelog.
 - [ ] Submit the public repository to the Omarchy marketplace for review.
+
+## Follow-up validation
+
+- [ ] Verify live Handy AI post-processing before advertising it as end-to-end tested (fixture and isolated UI tests pass; no live provider configured). This limitation is documented in 1.0.0 and was accepted for release.
 
 ## Scope and compatibility
 

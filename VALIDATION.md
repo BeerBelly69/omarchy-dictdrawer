@@ -1,4 +1,4 @@
-# Release-candidate validation
+# DictDrawer 1.0.0 validation
 
 Checked on 2026-09-08 with Omarchy 4.0.2, Hyprland 0.56.2, Quickshell 0.3.1, and Qt 6.11.2.
 

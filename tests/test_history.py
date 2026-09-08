@@ -20,6 +20,10 @@ class HistoryTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.directory = Path(self.temp.name) / "history"
+        # Never auto-discover a developer's real Handy database during tests.
+        environment = patch.dict(os.environ, {"XDG_DATA_HOME": self.temp.name})
+        environment.start()
+        self.addCleanup(environment.stop)
 
     def row(self, micros=1_700_000_000_123456, text="A test dictation"):
         return history.make_row(micros, text)

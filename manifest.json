@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "dictdrawer",
   "name": "DictDrawer",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0",
   "author": "mbelli",
   "license": "MIT",
   "description": "A sliding Voxtype and Handy history drawer with persistent local transcripts, full-history search, and one-click copy",

@@ -4,7 +4,7 @@ Your dictations, a keystroke away.
 
 A searchable Voxtype and Handy history drawer for Omarchy. Recover an excerpt, find the words you need, and copy them back into your work.
 
-> Private release candidate — not publicly released or listed in the marketplace. See the [release checklist](RELEASE_CHECKLIST.md) before publishing.
+> Version 1.0.0. Install directly from GitHub below; an Omarchy marketplace listing is not yet available.
 
 ![The dictation drawer, showing sample transcripts](preview.png)
 
@@ -46,8 +46,6 @@ The adapter is based on [Handy's history schema](https://github.com/cjpais/Handy
 On Hyprland/Wayland, configure Handy's recording shortcut through the desktop using `handy --toggle-transcription`; the shortcut shown inside Handy may not work globally. This is separate from DictDrawer's drawer shortcut. See [Handy's Linux notes](https://github.com/cjpais/Handy#linux-notes). After updating DictDrawer from a version without Handy support, restart the shell if it retains the old plugin code: `omarchy restart shell`.
 
 ## Install
-
-During private review, Git must already be authenticated with an account that has access to this repository. This is not yet a public installation URL.
 
 ```sh
 omarchy plugin add https://github.com/BeerBelly69/omarchy-dictdrawer.git --enable
