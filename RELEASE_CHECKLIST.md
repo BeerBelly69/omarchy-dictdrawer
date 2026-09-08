@@ -30,4 +30,4 @@ This repository is private for review. Do not change its visibility, create a pu
 
 There is no separate Archive/Trash interface or automatic deletion policy in this build. The rolling count controls display, not storage retention. Files currently remain in the existing flat history directory; day-based folders are not implemented yet.
 
-The plugin ID remains `mbelli.dictation` to preserve existing bar settings and keybindings. DictDrawer is the display name; users do not need to rename their installed plugin directory.
+The plugin ID is `dictdrawer`, matching the DictDrawer name. Omarchy installs it in `~/.config/omarchy/plugins/dictdrawer/`; bar settings and shell commands use the same ID. The transcript storage location is independent of the plugin ID and is unchanged.

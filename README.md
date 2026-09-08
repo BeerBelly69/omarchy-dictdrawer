@@ -43,7 +43,7 @@ omarchy plugin add https://github.com/BeerBelly69/omarchy-dictdrawer.git --enabl
 The helper is bundled in the plugin; no separate script installation is needed. To change the bar section:
 
 ```sh
-omarchy bar move mbelli.dictation --section center
+omarchy bar move dictdrawer --section center
 ```
 
 ### Optional shortcut
@@ -51,7 +51,7 @@ omarchy bar move mbelli.dictation --section center
 The plugin does not install or replace keybindings. Check whether your preferred chord is free with `omarchy menu keybindings --print`, then add this to `~/.config/hypr/bindings.lua`:
 
 ```lua
-o.bind("SUPER + ALT + apostrophe", "Dictation history", "omarchy-shell shell toggle mbelli.dictation")
+o.bind("SUPER + ALT + apostrophe", "DictDrawer", "omarchy-shell shell toggle dictdrawer")
 ```
 
 On a Mac keyboard, Super is the Command key. This shortcut is Cmd+Alt+the apostrophe/quote key, without Shift. Validate changes with `hyprctl reload` followed by `hyprctl configerrors`. The `shell toggle` route chooses the appropriate bar instance on a multi-monitor desktop.
@@ -92,7 +92,7 @@ On first use, at most the newest **50,000 journal records** are imported. Subseq
 To stop archival, disable the widget:
 
 ```sh
-omarchy plugin disable mbelli.dictation
+omarchy plugin disable dictdrawer
 ```
 
 To remove saved excerpts, use the folder button and your file manager. **Re-enabling or refreshing can recover deleted excerpts again while their source journal entries still exist.** The plugin does not erase system journals. Saving and deleting history are local operations, not a guarantee that every other copy has been erased.
@@ -100,7 +100,7 @@ To remove saved excerpts, use the folder button and your file manager. **Re-enab
 ## Remove
 
 ```sh
-omarchy plugin remove mbelli.dictation
+omarchy plugin remove dictdrawer
 ```
 
 Remove the optional binding you added to `bindings.lua` and reload Hyprland. Saved transcripts remain in the history directory; remove them separately only if you want to discard them. There is no Voxtype hook to uninstall, and no service needs to be restarted.

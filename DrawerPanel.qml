@@ -51,7 +51,7 @@ PanelWindow {
   color: "transparent"
   exclusionMode: ExclusionMode.Ignore
 
-  WlrLayershell.namespace: "mbelli-dictation-drawer"
+  WlrLayershell.namespace: "dictdrawer-drawer"
   WlrLayershell.layer: WlrLayer.Overlay
   WlrLayershell.keyboardFocus: open
     ? (focusPrimed ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive)
@@ -255,7 +255,7 @@ PanelWindow {
         color: "transparent"
         exclusionMode: ExclusionMode.Ignore
 
-        WlrLayershell.namespace: "mbelli-dictation-dismiss"
+        WlrLayershell.namespace: "dictdrawer-dismiss"
         WlrLayershell.layer: WlrLayer.Overlay
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 

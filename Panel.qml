@@ -9,10 +9,10 @@ import qs.Ui
 // Recover Voxtype output from the user journal and the local transcript archive.
 Panel {
   id: root
-  moduleName: "mbelli.dictation"
+  moduleName: "dictdrawer"
   // Use the shell's monitor-aware routing, avoiding duplicate IPC handlers
   // when the bar instantiates one widget on each output.
-  // omarchy-shell shell toggle mbelli.dictation
+  // omarchy-shell shell toggle dictdrawer
   manageIpc: false
 
   readonly property string home: Quickshell.env("HOME")
@@ -237,7 +237,7 @@ Panel {
     // right and already flashes 󰍬 / 󰔟 while voxtype is recording and
     // transcribing. This button is the archive, and it is always there.
     text: "󰋚"
-    tooltipText: "Dictation history"
+    tooltipText: "DictDrawer"
     onPressed: function(b) { root.toggle() }
   }
 

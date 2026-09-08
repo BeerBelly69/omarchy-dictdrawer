@@ -2,6 +2,7 @@
 
 ## Unreleased — 1.0.0-dev.1
 
+- DictDrawer branding with the matching `dictdrawer` plugin ID and install directory.
 - Sliding drawer that emerges from behind any bar edge.
 - Persistent local Voxtype transcript recovery and legacy archive support.
 - Full-archive search with highlighted matches and context previews, keyboard navigation, and expandable excerpts.
