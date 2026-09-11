@@ -4,8 +4,6 @@ Your dictations, a keystroke away.
 
 A searchable Voxtype and Handy history drawer for Omarchy. Recover an excerpt, find the words you need, and copy them back into your work.
 
-> Version 1.0.0. Install directly from GitHub below; an Omarchy marketplace listing is not yet available.
-
 ![The dictation drawer, showing sample transcripts](preview.png)
 
 Click the history icon to retrieve words that landed in the wrong window or reuse an earlier excerpt. The panel slides from behind the bar, follows your theme, and keeps its controls in the footer.
